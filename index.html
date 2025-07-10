@@ -19,31 +19,38 @@
     </style>
 </head>
 <body>
-    <h2>Paste an Image Below</h2>
-    <div style="display: flex; align-items: flex-start; gap: 2em;">
-        <div style="flex: 0 0 auto; min-width: 350px;">
-            <div style="margin-bottom: 1em;">
-                <label><input type="radio" name="drawmode" id="mode-poly" checked> Poly</label>
-                <label><input type="radio" name="drawmode" id="mode-circle"> Circle</label>
-                <label><input type="radio" name="drawmode" id="mode-rect"> Rectangle</label>
-            </div>
-            <div id="paste-area" tabindex="0">Click here and press <b>Ctrl+V</b> to paste an image</div>
-            <div id="image-container" style="position:relative;">
-                <img id="display-img" src="chevrolet.jpg" style="cursor: crosshair;">
-                <canvas id="dot-canvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
-            </div>
-            <button id="clear-dots-btn" style="margin-top:1em;">Clear Shapes</button>
+        <div id="paste-area" tabindex="0" style="width:100%; box-sizing:border-box; margin-bottom:1em;">
+            Click here and press <b>Ctrl+V</b> to paste an image<br>
+            <input type="file" id="upload-img" accept="image/*" style="margin-top:1em;">
+            <div style="margin-top:0.5em; color:#888;">or drag and drop an image here</div>
         </div>
-        <div style="flex: 1 1 0; min-width: 300px;">
-            <div style="margin-bottom: 0.5em; display: flex; align-items: center; gap: 1em;">
-                <span style="font-weight:bold;">All Coordinates:</span>
-                <span id="all-coords" style="font-family:monospace; word-break:break-all;"></span>
-                <button id="copy-coords-btn" title="Copy all coordinates to clipboard">Copy</button>
+        <div style="display: flex; align-items: flex-start; gap: 2em;">
+            <div style="flex: 0 0 auto; min-width: 350px;">
+                <div id="image-container" style="position:relative;">
+                    <img id="display-img" src="chevrolet.jpg" style="cursor: crosshair;">
+                    <canvas id="dot-canvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
+                    <div style="margin-bottom: 1em; text-align:center;">
+                        <label><input type="radio" name="drawmode" id="mode-poly" checked> Poly</label>
+                        <label><input type="radio" name="drawmode" id="mode-circle"> Circle</label>
+                        <label><input type="radio" name="drawmode" id="mode-rect"> Rectangle</label>
+                        <br>
+                        <button id="clear-dots-btn">Clear Shapes</button>
+                    </div>
+                </div>
             </div>
-            <div id="dot-coords" style="margin-top:1em; font-family:monospace;"></div>
+            <div style="flex: 1 1 0; min-width: 300px; ">
+                <div style="margin-bottom: 0.5em; display: flex; align-items: center; gap: 0.5em;">
+                    <span style="font-weight:bold;">All Coordinates</span>
+                    <button id="copy-coords-btn" title="Copy all coordinates to clipboard">Copy</button>
+                </div>
+                <div id="all-coords" style="font-family:monospace; word-break:break-all; margin-bottom:1em;"></div>
+                <div style="display: flex; align-items: center; gap: 1em; margin-bottom: 1em; margin-top: 30vh">
+                    <span style="font-weight:bold; ">Shape List</span>
+                </div>
+                <div id="dot-coords" style="margin-top:1em; font-family:monospace;"></div>
+            </div>
         </div>
-    </div>
-    <script>
+        <script>
         const pasteArea = document.getElementById('paste-area');
         const imageContainer = document.getElementById('image-container');
         let currentImg = null;
@@ -335,34 +342,6 @@
             pasteArea.classList.remove('paste-active');
         });
 
-        // Add hover effect for first dot when mouse is near
-        (function() {
-            const img = document.getElementById('display-img');
-            imageContainer.addEventListener('mousemove', function(e) {
-                if (!currentShape || currentShape.type !== 'poly' || currentShape.points.length < 3) return;
-                const firstDot = imageContainer.querySelector('.first-dot');
-                if (!firstDot) return;
-                const rect = img.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
-                const first = currentShape.points[0];
-                const dotRect = firstDot.getBoundingClientRect();
-                // Use the center of the dot for distance
-                const dotX = dotRect.left + dotRect.width / 2;
-                const dotY = dotRect.top + dotRect.height / 2;
-                const dist = Math.sqrt((e.clientX - dotX) ** 2 + (e.clientY - dotY) ** 2);
-                if (dist < 12) {
-                    firstDot.classList.add('hover-highlight');
-                } else {
-                    firstDot.classList.remove('hover-highlight');
-                }
-            });
-            imageContainer.addEventListener('mouseleave', function() {
-                const firstDot = imageContainer.querySelector('.first-dot');
-                if (firstDot) firstDot.classList.remove('hover-highlight');
-            });
-        })();
-
         // Copy to clipboard functionality
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('copy-coords-btn').addEventListener('click', function() {
@@ -371,6 +350,45 @@
                     navigator.clipboard.writeText(coords);
                 }
             });
+        });
+
+        // Drag & drop and upload support for image
+        const uploadInput = document.getElementById('upload-img');
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                showImage(event.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        pasteArea.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            pasteArea.classList.add('paste-active');
+        });
+        pasteArea.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            pasteArea.classList.remove('paste-active');
+        });
+        pasteArea.addEventListener('drop', function(e) {
+            e.preventDefault();
+            pasteArea.classList.remove('paste-active');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.type.startsWith('image/')) {
+                    handleImageFile(file);
+                }
+            }
+        });
+
+        uploadInput.addEventListener('change', function(e) {
+            if (uploadInput.files && uploadInput.files.length > 0) {
+                const file = uploadInput.files[0];
+                if (file.type.startsWith('image/')) {
+                    handleImageFile(file);
+                }
+            }
         });
     </script>
 </body>
