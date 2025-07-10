@@ -8,31 +8,44 @@
         body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; }
         #image-container { margin-top: 1em; }
         #image-container img { max-width: 100%; max-height: 400px; display: block; margin-bottom: 1em; border: 1px solid #ccc; background: #fff; }
-        #remove-btn { display: none; margin-bottom: 1em; }
         #paste-area { border: 2px dashed #aaa; padding: 2em; text-align: center; background: #fff; color: #888; cursor: pointer; }
         #paste-area.paste-active { border-color: #0078d7; color: #0078d7; }
-        #first-dot:hover { background: white; }
+        .first-dot { z-index: 2; }
+        .first-dot.hover-highlight { background: #00d700 !important;}
+        #dot-coords, #all-coords { font-family: monospace; }
+        #dot-coords { margin-top: 1em; }
+        #all-coords { word-break: break-all; }
+        button { cursor: pointer; }
     </style>
 </head>
 <body>
     <h2>Paste an Image Below</h2>
-    <div id="paste-area" tabindex="0">Click here and press <b>Ctrl+V</b> to paste an image</div>
-    <div id="image-container">
-        <img id="display-img" src="chevrolet.jpg" style="cursor: crosshair;">
-        <canvas id="dot-canvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
+    <div style="display: flex; align-items: flex-start; gap: 2em;">
+        <div style="flex: 0 0 auto; min-width: 350px;">
+            <div style="margin-bottom: 1em;">
+                <label><input type="radio" name="drawmode" id="mode-poly" checked> Poly</label>
+                <label><input type="radio" name="drawmode" id="mode-circle"> Circle</label>
+                <label><input type="radio" name="drawmode" id="mode-rect"> Rectangle</label>
+            </div>
+            <div id="paste-area" tabindex="0">Click here and press <b>Ctrl+V</b> to paste an image</div>
+            <div id="image-container" style="position:relative;">
+                <img id="display-img" src="chevrolet.jpg" style="cursor: crosshair;">
+                <canvas id="dot-canvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
+            </div>
+            <button id="clear-dots-btn" style="margin-top:1em;">Clear Shapes</button>
+        </div>
+        <div style="flex: 1 1 0; min-width: 300px;">
+            <div style="margin-bottom: 0.5em; display: flex; align-items: center; gap: 1em;">
+                <span style="font-weight:bold;">All Coordinates:</span>
+                <span id="all-coords" style="font-family:monospace; word-break:break-all;"></span>
+                <button id="copy-coords-btn" title="Copy all coordinates to clipboard">Copy</button>
+            </div>
+            <div id="dot-coords" style="margin-top:1em; font-family:monospace;"></div>
+        </div>
     </div>
-    <button id="remove-btn">Remove Image</button>
-    <button id="clear-dots-btn">Clear Dots</button>
-    <div style="margin:1em 0;">
-        <label><input type="radio" name="drawmode" id="mode-poly" checked> Poly</label>
-        <label><input type="radio" name="drawmode" id="mode-circle"> Circle</label>
-        <label><input type="radio" name="drawmode" id="mode-rect"> Rectangle</label>
-    </div>
-    <div id="dot-coords" style="margin-top:1em; font-family:monospace;"></div>
     <script>
         const pasteArea = document.getElementById('paste-area');
         const imageContainer = document.getElementById('image-container');
-        const removeBtn = document.getElementById('remove-btn');
         let currentImg = null;
         let drawMode = 'poly';
         let shapes = [];
@@ -61,10 +74,41 @@
             connectDots();
         }
 
+        function getAllCoordsString() {
+            let allShapes = [...shapes];
+            if (currentShape && currentShape.points.length > 0) allShapes.push(currentShape);
+            return allShapes.map(shape => {
+                if (shape.type === 'poly') {
+                    return shape.points.map(p => `(${p.x},${p.y})`).join(';');
+                } else if (shape.type === 'circle') {
+                    if (shape.points.length < 2) {
+                        return `circle:(${shape.points[0].x},${shape.points[0].y})`;
+                    } else {
+                        const dx = shape.points[1].x - shape.points[0].x;
+                        const dy = shape.points[1].y - shape.points[0].y;
+                        const r = Math.round(Math.sqrt(dx*dx + dy*dy));
+                        return `circle:(${shape.points[0].x},${shape.points[0].y}),r=${r}`;
+                    }
+                } else if (shape.type === 'rect') {
+                    if (shape.points.length < 2) {
+                        return `rect:(${shape.points[0].x},${shape.points[0].y})`;
+                    } else {
+                        return `rect:(${shape.points[0].x},${shape.points[0].y});(${shape.points[1].x},${shape.points[1].y})`;
+                    }
+                }
+            }).join(' | ');
+        }
+
+        function updateAllCoordsDisplay() {
+            document.getElementById('all-coords').textContent = getAllCoordsString();
+        }
+
+        // Update both displays
         function updateShapeListDisplay() {
             const coordDiv = document.getElementById('dot-coords');
             if (shapes.length === 0 && !currentShape) {
                 coordDiv.textContent = '';
+                updateAllCoordsDisplay();
                 return;
             }
             let allShapes = [...shapes];
@@ -89,6 +133,7 @@
                     }
                 }
             }).join('<br>');
+            updateAllCoordsDisplay();
         }
 
         function clearDots() {
@@ -258,20 +303,9 @@
             img.src = src;
             // Remove all existing dots and shapes
             clearDots();
-            removeBtn.style.display = 'inline-block';
             currentImg = img;
         }
 
-        function removeImage() {
-            const img = document.getElementById('display-img');
-            img.src = '';
-            // Remove all existing dots and shapes
-            clearDots();
-            removeBtn.style.display = 'none';
-            currentImg = null;
-        }
-
-        removeBtn.addEventListener('click', removeImage);
         document.getElementById('clear-dots-btn').addEventListener('click', clearDots);
 
         pasteArea.addEventListener('paste', function(e) {
@@ -299,6 +333,44 @@
         });
         pasteArea.addEventListener('blur', function() {
             pasteArea.classList.remove('paste-active');
+        });
+
+        // Add hover effect for first dot when mouse is near
+        (function() {
+            const img = document.getElementById('display-img');
+            imageContainer.addEventListener('mousemove', function(e) {
+                if (!currentShape || currentShape.type !== 'poly' || currentShape.points.length < 3) return;
+                const firstDot = imageContainer.querySelector('.first-dot');
+                if (!firstDot) return;
+                const rect = img.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const first = currentShape.points[0];
+                const dotRect = firstDot.getBoundingClientRect();
+                // Use the center of the dot for distance
+                const dotX = dotRect.left + dotRect.width / 2;
+                const dotY = dotRect.top + dotRect.height / 2;
+                const dist = Math.sqrt((e.clientX - dotX) ** 2 + (e.clientY - dotY) ** 2);
+                if (dist < 12) {
+                    firstDot.classList.add('hover-highlight');
+                } else {
+                    firstDot.classList.remove('hover-highlight');
+                }
+            });
+            imageContainer.addEventListener('mouseleave', function() {
+                const firstDot = imageContainer.querySelector('.first-dot');
+                if (firstDot) firstDot.classList.remove('hover-highlight');
+            });
+        })();
+
+        // Copy to clipboard functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('copy-coords-btn').addEventListener('click', function() {
+                const coords = document.getElementById('all-coords').textContent;
+                if (coords) {
+                    navigator.clipboard.writeText(coords);
+                }
+            });
         });
     </script>
 </body>
