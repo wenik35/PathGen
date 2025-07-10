@@ -1,1 +1,3 @@
-Test
+[GitHub Pages](wenik35.github.io/PathGen)
+
+Dieses Projekt ist ein webbasiertes Tool, mit dem Nutzer Bilder einfügen, hochladen oder per Drag & Drop ablegen können. Anschließend können auf dem Bild verschiedene Formen (Polygone, Kreise, Rechtecke) markiert und deren Koordinaten angezeigt sowie kopiert werden. Das Tool eignet sich besonders zur Erstellung und Dokumentation von Bildbereichen für Lern- oder Analysezwecke.
