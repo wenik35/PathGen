@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Paste & Display Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; background: #f9f9f9; }
+        #image-container { margin-top: 1em; }
+        #image-container img { max-width: 100%; max-height: 400px; display: block; margin-bottom: 1em; border: 1px solid #ccc; background: #fff; }
+        #remove-btn { display: none; margin-bottom: 1em; }
+        #paste-area { border: 2px dashed #aaa; padding: 2em; text-align: center; background: #fff; color: #888; cursor: pointer; }
+        #paste-area.paste-active { border-color: #0078d7; color: #0078d7; }
+    </style>
+</head>
+<body>
+    <h2>Paste an Image Below</h2>
+    <div id="paste-area" tabindex="0">Click here and press <b>Ctrl+V</b> to paste an image</div>
+    <div id="image-container">
+        <img id="display-img" src="chevrolet.jpg" style="cursor: crosshair;">
+        <canvas id="dot-canvas" style="position:absolute; left:0; top:0; pointer-events:none;"></canvas>
+    </div>
+    <button id="remove-btn">Remove Image</button>
+    <button id="clear-dots-btn">Clear Dots</button>
+    <div style="margin:1em 0;">
+        <label><input type="radio" name="drawmode" id="mode-poly" checked> Poly</label>
+        <label><input type="radio" name="drawmode" id="mode-circle"> Circle</label>
+        <label><input type="radio" name="drawmode" id="mode-rect"> Rectangle</label>
+    </div>
+    <div id="dot-coords" style="margin-top:1em; font-family:monospace;"></div>
+    <script>
+        const pasteArea = document.getElementById('paste-area');
+        const imageContainer = document.getElementById('image-container');
+        const removeBtn = document.getElementById('remove-btn');
+        let currentImg = null;
+        let drawMode = 'poly';
+        let shapes = [];
+        let currentShape = null;
+
+        // Draw a dot at the given coordinates relative to the image
+        function drawDotOnImage(x, y) {
+            const img = document.getElementById('display-img');
+            const dot = document.createElement('div');
+            dot.style.position = 'absolute';
+            dot.style.width = '10px';
+            dot.style.height = '10px';
+            dot.style.background = 'red';
+            dot.style.borderRadius = '50%';
+            dot.style.left = (img.offsetLeft + x - 5) + 'px';
+            dot.style.top = (img.offsetTop + y - 5) + 'px';
+            dot.style.pointerEvents = 'none';
+            dot.className = 'click-dot';
+            imageContainer.appendChild(dot);
+            if (!currentShape) {
+                currentShape = { type: drawMode, points: [] };
+            }
+            currentShape.points.push({x, y});
+            updateShapeListDisplay();
+            connectDots();
+        }
+
+        function updateShapeListDisplay() {
+            const coordDiv = document.getElementById('dot-coords');
+            if (shapes.length === 0 && !currentShape) {
+                coordDiv.textContent = '';
+                return;
+            }
+            let allShapes = [...shapes];
+            if (currentShape && currentShape.points.length > 0) allShapes.push(currentShape);
+            coordDiv.innerHTML = allShapes.map((shape, idx) => {
+                if (shape.type === 'poly') {
+                    return `Poly ${idx+1}: ` + shape.points.map(p => `(${p.x},${p.y})`).join('; ');
+                } else if (shape.type === 'circle') {
+                    if (shape.points.length < 2) {
+                        return `Circle ${idx+1}: center=(${shape.points[0].x},${shape.points[0].y})`;
+                    } else {
+                        const dx = shape.points[1].x - shape.points[0].x;
+                        const dy = shape.points[1].y - shape.points[0].y;
+                        const r = Math.round(Math.sqrt(dx*dx + dy*dy));
+                        return `Circle ${idx+1}: center=(${shape.points[0].x},${shape.points[0].y}), r=${r}`;
+                    }
+                } else if (shape.type === 'rect') {
+                    if (shape.points.length < 2) {
+                        return `Rect ${idx+1}: (${shape.points[0].x},${shape.points[0].y})`;
+                    } else {
+                        return `Rect ${idx+1}: (${shape.points[0].x},${shape.points[0].y}); (${shape.points[1].x},${shape.points[1].y})`;
+                    }
+                }
+            }).join('<br>');
+        }
+
+        function clearDots() {
+            const dots = imageContainer.querySelectorAll('.click-dot');
+            dots.forEach(dot => dot.remove());
+            shapes = [];
+            currentShape = null;
+            clearCanvas();
+            updateShapeListDisplay();
+        }
+
+        function clearCanvas() {
+            const canvas = document.getElementById('dot-canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function connectDots(mouseX = null, mouseY = null) {
+            const img = document.getElementById('display-img');
+            const canvas = document.getElementById('dot-canvas');
+            // Set canvas size and position to match image
+            canvas.width = img.width;
+            canvas.height = img.height;
+            canvas.style.left = img.offsetLeft + 'px';
+            canvas.style.top = img.offsetTop + 'px';
+            canvas.style.width = img.width + 'px';
+            canvas.style.height = img.height + 'px';
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw all finished shapes
+            for (const shape of shapes) {
+                drawShape(ctx, shape);
+            }
+            // Draw current shape in progress
+            if (!currentShape || !currentShape.points.length) return;
+            drawShape(ctx, currentShape, mouseX, mouseY);
+        }
+
+        function drawShape(ctx, shape, mouseX = null, mouseY = null) {
+            if (shape.type === 'poly') {
+                if (shape.points.length < 1) return;
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) {
+                    ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                }
+                // If mouse is present, preview next segment
+                if (mouseX !== null && mouseY !== null && shape.points.length > 0) {
+                    ctx.lineTo(mouseX, mouseY);
+                }
+                // If closed, close the polygon
+                if (shape.closed) {
+                    ctx.lineTo(shape.points[0].x, shape.points[0].y);
+                }
+                ctx.stroke();
+            } else if (shape.type === 'circle') {
+                if (shape.points.length < 1) return;
+                ctx.strokeStyle = 'green';
+                ctx.lineWidth = 2;
+                let cx = shape.points[0].x;
+                let cy = shape.points[0].y;
+                let r = 0;
+                if (shape.points.length > 1) {
+                    let dx = shape.points[1].x - cx;
+                    let dy = shape.points[1].y - cy;
+                    r = Math.sqrt(dx*dx + dy*dy);
+                } else if (mouseX !== null && mouseY !== null) {
+                    let dx = mouseX - cx;
+                    let dy = mouseY - cy;
+                    r = Math.sqrt(dx*dx + dy*dy);
+                }
+                if (r > 0) {
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+            } else if (shape.type === 'rect') {
+                if (shape.points.length < 1) return;
+                ctx.strokeStyle = 'orange';
+                ctx.lineWidth = 2;
+                let x1 = shape.points[0].x;
+                let y1 = shape.points[0].y;
+                let x2, y2;
+                if (shape.points.length > 1) {
+                    x2 = shape.points[1].x;
+                    y2 = shape.points[1].y;
+                } else if (mouseX !== null && mouseY !== null) {
+                    x2 = mouseX;
+                    y2 = mouseY;
+                } else {
+                    return;
+                }
+                ctx.beginPath();
+                ctx.rect(x1, y1, x2 - x1, y2 - y1);
+                ctx.stroke();
+            }
+        }
+
+        // Set up click event for coordinate display and dot drawing (only once)
+        (function() {
+            const img = document.getElementById('display-img');
+            // Draw mode radio buttons
+            document.getElementById('mode-poly').addEventListener('change', function() { if (this.checked) { drawMode = 'poly'; clearDots(); } });
+            document.getElementById('mode-circle').addEventListener('change', function() { if (this.checked) { drawMode = 'circle'; clearDots(); } });
+            document.getElementById('mode-rect').addEventListener('change', function() { if (this.checked) { drawMode = 'rect'; clearDots(); } });
+
+            img.addEventListener('click', function(e) {
+                const rect = img.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+                const y = Math.round(e.clientY - rect.top);
+                if (drawMode === 'poly') {
+                    // If first dot and click is close to it, close polygon
+                    if (currentShape && currentShape.points.length > 2) {
+                        const first = currentShape.points[0];
+                        const dist = Math.sqrt((x - first.x) ** 2 + (y - first.y) ** 2);
+                        if (dist < 10) {
+                            currentShape.closed = true;
+                            shapes.push(currentShape);
+                            currentShape = null;
+                            updateShapeListDisplay();
+                            connectDots();
+                            return;
+                        }
+                    }
+                    drawDotOnImage(x, y);
+                } else if (drawMode === 'circle' || drawMode === 'rect') {
+                    if (!currentShape || currentShape.points.length < 2) {
+                        drawDotOnImage(x, y);
+                        if (currentShape && currentShape.points.length === 2) {
+                            shapes.push(currentShape);
+                            currentShape = null;
+                            updateShapeListDisplay();
+                            connectDots();
+                        }
+                    }
+                }
+            });
+            // Draw preview shape to mouse
+            img.addEventListener('mousemove', function(e) {
+                const rect = img.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+                const y = Math.round(e.clientY - rect.top);
+                connectDots(x, y);
+            });
+            img.addEventListener('mouseleave', function() {
+                connectDots();
+            });
+            // Keep canvas in sync with image size and position
+            function updateCanvasSize() {
+                const canvas = document.getElementById('dot-canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                canvas.style.left = img.offsetLeft + 'px';
+                canvas.style.top = img.offsetTop + 'px';
+                canvas.style.width = img.width + 'px';
+                canvas.style.height = img.height + 'px';
+            }
+            window.addEventListener('resize', updateCanvasSize);
+            img.addEventListener('load', updateCanvasSize);
+            updateCanvasSize();
+        })();
+
+        function showImage(src) {
+            const img = document.getElementById('display-img');
+            img.src = src;
+            // Remove all existing dots and shapes
+            clearDots();
+            removeBtn.style.display = 'inline-block';
+            currentImg = img;
+        }
+
+        function removeImage() {
+            const img = document.getElementById('display-img');
+            img.src = '';
+            // Remove all existing dots and shapes
+            clearDots();
+            removeBtn.style.display = 'none';
+            currentImg = null;
+        }
+
+        removeBtn.addEventListener('click', removeImage);
+        document.getElementById('clear-dots-btn').addEventListener('click', clearDots);
+
+        pasteArea.addEventListener('paste', function(e) {
+            const items = e.clipboardData.items;
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    const file = items[i].getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        showImage(event.target.result);
+                    };
+                    reader.readAsDataURL(file);
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
+
+        pasteArea.addEventListener('click', function() {
+            pasteArea.focus();
+        });
+
+        pasteArea.addEventListener('focus', function() {
+            pasteArea.classList.add('paste-active');
+        });
+        pasteArea.addEventListener('blur', function() {
+            pasteArea.classList.remove('paste-active');
+        });
+    </script>
+</body>
+</html>
