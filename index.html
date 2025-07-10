@@ -11,6 +11,7 @@
         #remove-btn { display: none; margin-bottom: 1em; }
         #paste-area { border: 2px dashed #aaa; padding: 2em; text-align: center; background: #fff; color: #888; cursor: pointer; }
         #paste-area.paste-active { border-color: #0078d7; color: #0078d7; }
+        #first-dot:hover { background: white; }
     </style>
 </head>
 <body>
@@ -53,6 +54,7 @@
             imageContainer.appendChild(dot);
             if (!currentShape) {
                 currentShape = { type: drawMode, points: [] };
+                dot.classList.add('first-dot');
             }
             currentShape.points.push({x, y});
             updateShapeListDisplay();
@@ -191,9 +193,9 @@
         (function() {
             const img = document.getElementById('display-img');
             // Draw mode radio buttons
-            document.getElementById('mode-poly').addEventListener('change', function() { if (this.checked) { drawMode = 'poly'; clearDots(); } });
-            document.getElementById('mode-circle').addEventListener('change', function() { if (this.checked) { drawMode = 'circle'; clearDots(); } });
-            document.getElementById('mode-rect').addEventListener('change', function() { if (this.checked) { drawMode = 'rect'; clearDots(); } });
+            document.getElementById('mode-poly').addEventListener('change', function() { if (this.checked) { drawMode = 'poly'; } });
+            document.getElementById('mode-circle').addEventListener('change', function() { if (this.checked) { drawMode = 'circle'; } });
+            document.getElementById('mode-rect').addEventListener('change', function() { if (this.checked) { drawMode = 'rect';} });
 
             img.addEventListener('click', function(e) {
                 const rect = img.getBoundingClientRect();
