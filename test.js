@@ -1,3 +1,3 @@
-export function test(p){
+function test(p){
     window.alert(p);
 }
